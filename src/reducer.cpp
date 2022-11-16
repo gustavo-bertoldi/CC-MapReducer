@@ -7,7 +7,7 @@
 using namespace std;
 
 void reduce(const string &file_name) {
-    ifstream input(file_name + ".shuf1");
+    ifstream input("output/" + file_name + ".shuf0");
     string line;
     unordered_map<string, set<string>> map;
     while (getline(input, line)) {
@@ -17,7 +17,7 @@ void reduce(const string &file_name) {
         map[key].insert(value);
     }
 
-    ofstream output(file_name + ".red");
+    ofstream output("output/" + file_name + ".red");
     for (auto &p: map) {
         if (p.second.size() > 1) {
             output << p.first << ": { ";
@@ -31,7 +31,6 @@ void reduce(const string &file_name) {
 }
 
 int main() {
-    const string input = "source_files/10001";
-    reduce("source_files/10001");
+    reduce("10001");
     return 0;
 }

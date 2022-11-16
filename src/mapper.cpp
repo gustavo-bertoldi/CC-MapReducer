@@ -9,7 +9,7 @@ using namespace std;
 
 const unordered_set<string>* read_stop_words() {
     unordered_set<string>* stop_words = new unordered_set<string>();
-    ifstream input("stop_words.txt");
+    ifstream input("config/stop_words.txt");
     string stop_word;
     while(getline(input, stop_word, ',')) {
         stop_words->insert(stop_word);
@@ -22,8 +22,8 @@ bool is_letter(const char &c) {
 }
 
 void read_from_file(const string &file_name, const unordered_set<string> &stop_words = unordered_set<string>()) {
-    ifstream input(file_name);
-    ofstream output(file_name.substr(0, file_name.find_last_of('.')) + ".map");
+    ifstream input("input/" + file_name + ".txt");
+    ofstream output("output/" + file_name + ".map");
     string line;
     while (getline(input, line)) {
         stringstream words(line);
@@ -43,6 +43,6 @@ void read_from_file(const string &file_name, const unordered_set<string> &stop_w
 
 int main() {
     const unordered_set<string>* stop_words = read_stop_words();
-    read_from_file("source_files/10001.txt", *stop_words);
+    read_from_file("10001", *stop_words);
     return 0;
 } 
