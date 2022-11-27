@@ -1,0 +1,22 @@
+{
+  "name": "reader",
+  "version": "1.0.0",
+  "description": "Reader for MapReduce pipeline. Reads all the files from the given input folder in Google Cloud Storage and triggers the start of the anagram finding MapReduce pipeline.",
+  "main": "reader.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "MapReduce",
+    "Reader"
+  ],
+  "author": "Gustavo Bertoldi",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/pubsub": "^3.2.1",
+    "@google-cloud/storage": "^6.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.9"
+  }
+}
