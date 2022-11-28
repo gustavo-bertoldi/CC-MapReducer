@@ -1,6 +1,7 @@
 <script>
   import GitHubLogo from './assets/github.svg';
   import FileSelector from './lib/FileSelector.svelte';
+
 </script> 
 
 <main>

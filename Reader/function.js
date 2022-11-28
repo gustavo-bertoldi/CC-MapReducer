@@ -29,7 +29,7 @@ exports.read = async (req, res) => {
             topic.publishMessage({ data: contents }).then(() => {
                 if (count == files[0].length) 
                     res.status(200).send("Done");
-                console.log(`Message for file [${i}] published`);
+                console.log(`Message for file [${count}] published`);
             }).catch(err => {
                 console.error(err);
             })

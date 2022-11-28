@@ -14,6 +14,10 @@
     "vite": "^3.2.3"
   },
   "dependencies": {
-    "@google-cloud/storage": "^6.7.0"
+    "@google-cloud/storage": "^6.7.0",
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
+    "stream": "^0.0.2",
+    "util": "^0.12.5"
   }
 }
