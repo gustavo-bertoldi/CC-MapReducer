@@ -7,7 +7,7 @@ const bucket = storage.bucket('mrcw');
 
 //Set up the pubsub client and topic
 const pubsub = new PubSub();
-const topic = pubsub.topic('projects/cloudcomputingcw-368814/topics/MapperInput');
+const topic = pubsub.topic('MapperInput');
 
 //Download stop words from Google Cloud Storage
 async function getStopWords() {
@@ -15,20 +15,29 @@ async function getStopWords() {
     return stopWords.toString().split(',');
 }
 
-bucket.getFiles({prefix: 'input/'}).then(async (files) => {
+exports.read = async (req, res) => {
     const stopWords = await getStopWords();
-    files[0].forEach((file) => {
+    const files = await bucket.getFiles({prefix: 'input/'});
+    let count = 0;
+    files[0].forEach(file => {
         file.download((err, contents) => {
             if (err) {
                 console.error(err);
                 return;
-            }
+            } else count += 1;
 
             const json = {
                 stopWords: stopWords,
                 contents: contents.toString()
             };
-            topic.publishMessage({ json });
-        })
+            topic.publishMessage({ json }).then(() => {
+                if (count == files[0].length) 
+                    res.status(200).send("Done");
+                console.log(`Message for file [${i}] published`);
+            }).catch(err => {
+                console.error(err);
+            })
+        });
     });
-});
+};
+  
