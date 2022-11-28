@@ -26,11 +26,7 @@ exports.read = async (req, res) => {
                 return;
             } else count += 1;
 
-            const json = {
-                stopWords: stopWords,
-                contents: contents.toString()
-            };
-            topic.publishMessage({ json }).then(() => {
+            topic.publishMessage({ data: contents }).then(() => {
                 if (count == files[0].length) 
                     res.status(200).send("Done");
                 console.log(`Message for file [${i}] published`);
