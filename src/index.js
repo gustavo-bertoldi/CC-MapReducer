@@ -108,7 +108,9 @@ exports.read = async (req, res) => {
 // to be mapped. On conclusion, published a message to the shuffler input topic
 // containing the file with the mapped content.
 exports.map = (message, context, callback) => {
-    const fileName = message.data.toString();
+    console.log("MESSAGE: ", message);
+    const fileName = Buffer.from(message.data, 'base64').toString();
+    console.log("Mapping file: ", fileName);
     bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
         if (err) {
             console.error(err);
