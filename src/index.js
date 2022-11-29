@@ -108,7 +108,6 @@ exports.read = async (req, res) => {
 // to be mapped. On conclusion, published a message to the shuffler input topic
 // containing the file with the mapped content.
 exports.map = (message, context, callback) => {
-    console.log("MESSAGE: ", message);
     const fileName = Buffer.from(message.data, 'base64').toString();
     console.log("Mapping file: ", fileName);
     bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
@@ -119,16 +118,17 @@ exports.map = (message, context, callback) => {
 
         const output = _map(data.toString());
         const outputFileName = `shuf_${fileName.split('_')[1]}`;
-        const outputFilePath = `${process.env.OUTPUT_PATH}/${outputFileName}`;
+        const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
         bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-            .then(() => shufflerTopic.publishMessage({data: Buffer.from(outputFileName)})
+            .then(() => shufflerTopic.publishMessage({data: Buffer.from(outputFileName, 'utf8')})
                 .catch(err => console.error(err)));
     });
 };
 
 
 exports.shuffle = (message, context, callback) => {
-    const fileName = message.data.toString();
+    const fileName = Buffer.from(message.data, 'base64').toString();
+    console.log("Shuffling file: ", fileName);
     bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
         if (err) {
             console.error(err);
@@ -140,7 +140,7 @@ exports.shuffle = (message, context, callback) => {
             const outputFileName = `red_${idx}`;
             const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-                .then(() => reducerTopic.publishMessage({data: Buffer.from(outputFileName)})
+                .then(() => reducerTopic.publishMessage({data: Buffer.from(outputFileName, 'utf-8')})
                     .catch(err => console.error(err)));
         });
     });
