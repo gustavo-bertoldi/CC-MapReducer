@@ -1,0 +1,13 @@
+{
+  "name": "gc-map-reduce",
+  "version": "1.0.0",
+  "description": "MapReduce pipeline for finding anagrams. Implemented using Google Cloud infrastructure.",
+  "main": "index.js",
+  "author": "Gustavo Bertoldi",
+  "license": "MIT",
+  "dependencies": {
+    "@google-cloud/pubsub": "^3.2.1",
+    "@google-cloud/storage": "^6.7.0",
+    "dotenv": "^16.0.3"
+  }
+}
