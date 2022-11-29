@@ -73,7 +73,7 @@ function _shuffle(input, nbOutputs = 5) {
         acc[hashIdx] += pair;
         return acc;
     }, new Array(nbOutputs));
-}
+};
 
 // Reads all files from the input directory, filters the words and writes the 
 // output in format as a comma separated string of valid words to the output 
@@ -94,13 +94,13 @@ exports.read = async (req, res) => {
             const outputFilePath = `${process.env.OUTPUT_PATH}/${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
                 .then(() => {
-                    topic.publishMessage({data: Buffer.from(outputFileName)});
+                    mapperTopic.publishMessage({data: Buffer.from(outputFileName)});
                     if (idx === files[0].length - 1) 
                         res.status(200).send(`Reading completed. Generated ${idx + 1} mapper inputs.`);
                 });
         });
     });
-}
+};
 
 // Triggered by a message to the mapper input topic containing the name of the file
 // to be mapped. On conclusion, published a message to the shuffler input topic
@@ -138,4 +138,4 @@ exports.shuffle = (message, context, callback) => {
                 .then(() => reducerTopic.publishMessage({data: Buffer.from(outputFileName)}));
         });
     });
-}
+};
