@@ -12,7 +12,7 @@ const topic = pubsub.topic('MapperInput');
 //Download stop words from Google Cloud Storage
 async function getStopWords() {
     const stopWords = await bucket.file('config/StopWords').download();
-    return Set(stopWords.toString().split(','));
+    return new Set(stopWords.toString().split(','));
 }
 
 function isValidWord(word) {
