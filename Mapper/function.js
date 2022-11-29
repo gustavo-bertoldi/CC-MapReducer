@@ -6,7 +6,7 @@ const storage = new Storage();
 const bucket = storage.bucket('mrcw');
 
 
-const mapper = (message, context, callback) => {
+exports.mapper = (message, context, callback) => {
   console.log(message);
 };
 
