@@ -97,7 +97,7 @@ exports.read = async (req, res) => {
                 .then(() => {
                     mapperTopic.publishMessage({data: Buffer.from(outputFileName)})
                         .catch(err => console.error(err));
-                    if (idx === files[0].length - 1) 
+                    if (idx === files.length - 1) 
                         res.status(200).send(`Reading completed. Generated ${idx + 1} mapper inputs.`);
                 });
         });
