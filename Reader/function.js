@@ -17,7 +17,8 @@ async function getStopWords() {
 
 function isValidWord(word) {
     return word.length > 0 
-        && [...word].every(char => char >= 'a' && char <= 'z');
+        && word.match(/[a-z]+/);
+    
 }
 
 exports.read = async (req, res) => {
