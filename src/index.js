@@ -130,15 +130,22 @@ exports.map = (message, context, callback) => {
     bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
         if (err) {
             console.error(err);
-            return;
+            return - 1;
         }
 
         const output = _map(data.toString());
         const outputFileName = `shuf_${fileName.split('_')[1]}`;
         const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
         bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-            .then(() => shufflerTopic.publishMessage({data: Buffer.from(outputFileName, 'utf8')})
-                .catch(err => console.error(err)));
+            .then(() => 
+                shufflerTopic.publishMessage({data: Buffer.from(outputFileName, 'utf8')})
+                .then(() => {
+                    return 1;
+                })
+                .catch(err => {
+                    console.error(err);
+                    return -1;
+                }));
     });
 };
 
@@ -153,15 +160,22 @@ exports.shuffle = (message, context, callback) => {
         }
 
         const outputs = _shuffle(data.toString());
-        let outputFiles = [];
         outputs.forEach((output, idx) => {
             const outputFileName = `red_${fileName.split('_')[1]}_${idx}`;
             const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
                 .then(() => {
                     if (idx === outputs.length - 1) {
-                        reducerTopic.publishMessage({data: Buffer.from(`red_${fileName.split('_')[1]}`, 'utf-8')})
-                                .catch(err => console.error(err));
+                        const filePrefix = `red_${fileName.split('_')[1]}`;
+                        reducerTopic.publishMessage({data: Buffer.from(filePrefix, 'utf-8')})
+                            .then(() => {
+                                console.log(`Shuffled to ${filePrefix}_x`);
+                                return 1;
+                            })
+                            .catch(err => {
+                                console.error(err)
+                                return -1;
+                            });
                     }
                 });
         });
@@ -170,14 +184,14 @@ exports.shuffle = (message, context, callback) => {
 
 exports.reduce = async (message, context, callback) => {
     const filePrefix = Buffer.from(message.data, 'base64').toString();
-    const files = (await bucket.getFiles({prefix: `${process.env.INPUT_PATH}${filePrefix}`}))[0];
+    const files = (await bucket.getFiles({prefix: `${process.env.OUTPUT_PATH}${filePrefix}`}))[0];
     console.log("Reducing files: ", `${filePrefix}_x`);
     let output = '';
     files.forEach((file, idx) => {
         file.download((err, data) => {
             if (err) {
                 console.error(err);
-                return;
+                return -1;
             }
             output += _reduce(data.toString());
 
@@ -185,7 +199,13 @@ exports.reduce = async (message, context, callback) => {
                 const outputFileName = `result_${filePrefix.split('_')[1]}`;
                 const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
                 bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-                    .then(() => console.log(`Reduced to ${outputFileName}`));
+                    .then(() => {
+                        console.log(`Reduced to ${outputFileName}`);
+                        return 1;
+                    }).catch(err => {
+                        console.error("Failed to save output file: ", err);
+                        return -1;
+                    });
             }
         });
     });
