@@ -155,7 +155,7 @@ exports.shuffle = (message, context, callback) => {
         const outputs = _shuffle(data.toString());
         let outputFiles = [];
         outputs.forEach((output, idx) => {
-            const outputFileName = `red_${idx}`;
+            const outputFileName = `red_${fileName.split('_')[1]}_${idx}`;
             outputFiles.push(outputFileName);
             const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
