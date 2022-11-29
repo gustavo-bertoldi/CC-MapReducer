@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args: [gcloud, functions, deploy, reader, --region=europe-west2, --source=Reader/, --trigger-http, --runtime=nodejs16]
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args: [gcloud, functions, deploy, mapper, --region=europe-west2, --source=Mapper/, --trigger-http, --runtime=nodejs16]
