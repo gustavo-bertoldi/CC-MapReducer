@@ -43,7 +43,7 @@ exports.read = async (req, res) => {
             const fileName = 'mapper_input_' + idx;
             bucket.file(`reader_output/${fileName}`).save(wordsOutput, {
                 resumable: false,
-                timeout: 30
+                timeout: 30000
             }).then(() => {
                 //Check finished
                 if (idx === files[0].length - 1) res.status(200).send('DONE');
