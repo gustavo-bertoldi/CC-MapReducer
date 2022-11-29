@@ -156,35 +156,37 @@ exports.shuffle = (message, context, callback) => {
         let outputFiles = [];
         outputs.forEach((output, idx) => {
             const outputFileName = `red_${fileName.split('_')[1]}_${idx}`;
-            outputFiles.push(outputFileName);
             const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
                 .then(() => {
                     if (idx === outputs.length - 1) {
-                        outputFiles.forEach(fileName => {
-                            reducerTopic.publishMessage({data: Buffer.from(fileName, 'utf-8')})
-                                .catch(err => console.error(err))
-                        });
+                        reducerTopic.publishMessage({data: Buffer.from(`red_${fileName.split('_')[1]}`, 'utf-8')})
+                                .catch(err => console.error(err));
                     }
                 });
         });
     });
 };
 
-exports.reduce = (message, context, callback) => {
-    const fileName = Buffer.from(message.data, 'base64').toString();
-    console.log("Reducing file: ", fileName);
-    bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
-        if (err) {
-            console.error(err);
-            return;
-        }
+exports.reduce = async (message, context, callback) => {
+    const filePrefix = Buffer.from(message.data, 'base64').toString();
+    const files = (await bucket.getFiles({prefix: `${process.env.INPUT_PATH}${filePrefix}`}))[0];
+    console.log("Reducing files: ", `${filePrefix}_x`);
+    let output = '';
+    files.forEach((file, idx) => {
+        file.download((err, data) => {
+            if (err) {
+                console.error(err);
+                return;
+            }
+            output += _reduce(data.toString());
 
-        
-        const output = _reduce(data.toString());
-        const outputFileName = `result_${fileName.split('_')[1]}`;
-        const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
-        bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-            .then(() => console.log(`Reduced to ${outputFileName}`));
+            if (idx === files.length - 1) {
+                const outputFileName = `result_${filePrefix.split('_')[1]}`;
+                const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
+                bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
+                    .then(() => console.log(`Reduced to ${outputFileName}`));
+            }
+        });
     });
 }
