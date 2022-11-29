@@ -9,7 +9,7 @@ steps:
   args: [gcloud, functions, deploy, shuffler, --region=europe-west2, --source=src/, --trigger-topic=ShufflerInput, --runtime=nodejs16, --entry-point=shuffle, --env-vars-file=src/.env.gc.yaml]
   waitFor: ['-']
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  args: [gcloud, functions, deploy, reducer, --region=europe-west2, --source=src/, --trigger-topic=ShufflerInput, --runtime=nodejs16, --entry-point=shuffle, --env-vars-file=src/.env.gc.yaml]
+  args: [gcloud, functions, deploy, reducer, --region=europe-west2, --source=src/, --trigger-topic=ReducerInput, --runtime=nodejs16, --entry-point=reduce, --env-vars-file=src/.env.gc.yaml]
   waitFor: ['-']
 options:
   logging: CLOUD_LOGGING_ONLY
