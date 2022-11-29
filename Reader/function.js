@@ -18,7 +18,6 @@ async function getStopWords() {
 function isValidWord(word) {
     return word.length > 0 
         && word.match(/[a-z]+/);
-    
 }
 
 exports.read = async (req, res) => {
@@ -41,12 +40,13 @@ exports.read = async (req, res) => {
                 .join(',');
             
             //Write to Google Storage
-            const fileName = 'mapper_input_' + idx;
-            bucket.file(`reader_output/${fileName}`).save(wordsOutput, {
+            const fileName = 'reader_output/mapper_input_' + idx;
+            bucket.file(fileName).save(wordsOutput, {
                 resumable: false,
                 timeout: 30000
             }).then(() => {
-                //Check finished
+                //Trigger mapper on this file
+                topic.publishMessage({data: Buffer.from(fileName)});
                 if (idx === files[0].length - 1) res.status(200).send('DONE');
             });
         });
