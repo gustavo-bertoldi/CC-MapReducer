@@ -5,7 +5,6 @@ const { PubSub } = require('@google-cloud/pubsub');
 const storage = new Storage();
 const bucket = storage.bucket('mrcw');
 
-
 exports.mapper = (message, context, callback) => {
   console.log(message);
 };
