@@ -75,6 +75,23 @@ function _shuffle(input, nbOutputs = 5) {
     }, new Array(nbOutputs));
 };
 
+function _reduce(input) {
+    const map = input.split(',').reduce((acc, pair) => {
+        if (!pair) return acc;
+        const [sorted, word] = pair.split(':');
+        if (!acc[sorted]) acc[sorted] = new Set();
+        acc[sorted].add(word);
+        return acc;
+    }, {});
+
+    return Object.keys(map).reduce((acc, key) => {
+        if (map[key].size > 1) {
+            acc.push(`${key}: { ${[...map[key]].join(', ')} }\n`);
+        }
+        return acc;
+    }, "");
+};
+
 // Reads all files from the input directory, filters the words and writes the 
 // output in format as a comma separated string of valid words to the output 
 // directory to be used as input for the mappers.
@@ -145,3 +162,21 @@ exports.shuffle = (message, context, callback) => {
         });
     });
 };
+
+exports.reduce = (message, context, callback) => {
+    const fileName = Buffer.from(message.data, 'base64').toString();
+    console.log("Reducing file: ", fileName);
+    bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
+        if (err) {
+            console.error(err);
+            return;
+        }
+
+        
+        const output = _reduce(data.toString());
+        const outputFileName = `result_${fileName.split('_')[1]}`;
+        const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
+        bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
+            .then(() => console.log(`Reduced to ${outputFileName}`));
+    });
+}
