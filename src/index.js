@@ -153,12 +153,20 @@ exports.shuffle = (message, context, callback) => {
         }
 
         const outputs = _shuffle(data.toString());
+        let outputFiles = [];
         outputs.forEach((output, idx) => {
             const outputFileName = `red_${idx}`;
+            outputFiles.push(outputFileName);
             const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-                .then(() => reducerTopic.publishMessage({data: Buffer.from(outputFileName, 'utf-8')})
-                    .catch(err => console.error(err)));
+                .then(() => {
+                    if (idx === outputs.length - 1) {
+                        outputFiles.forEach(fileName => {
+                            reducerTopic.publishMessage({data: Buffer.from(fileName, 'utf-8')})
+                                .catch(err => console.error(err))
+                        });
+                    }
+                });
         });
     });
 };
