@@ -12,27 +12,38 @@ const topic = pubsub.topic('MapperInput');
 //Download stop words from Google Cloud Storage
 async function getStopWords() {
     const stopWords = await bucket.file('config/StopWords').download();
-    return stopWords.toString().split(',');
+    return Set(stopWords.toString().split(','));
+}
+
+function isValidWord(word) {
+    return word.length > 0 && [...word].every(char => char >= 'a' && char <= 'z');
 }
 
 exports.read = async (req, res) => {
     const stopWords = await getStopWords();
     const files = await bucket.getFiles({prefix: 'input/'});
-    let count = 0;
-    files[0].forEach(file => {
+    files[0].forEach((file, idx) => {
         file.download((err, contents) => {
             if (err) {
                 console.error(err);
                 return;
-            } else count += 1;
+            }
 
-            topic.publishMessage({ data: contents }).then(() => {
-                if (count == files[0].length) 
-                    res.status(200).send("Done");
-                console.log(`Message for file [${count}] published`);
-            }).catch(err => {
-                console.error(err);
-            })
+            //Filter the words by the following criteria
+            //1. Remove stop words
+            //2. Remove words with non-alphabetic characters
+            //3. Remove words with length less than 1
+            const words = contents.toString().split(' ')
+                .map(word => word.toLowerCase())
+                .filter(word => isValidWord(word) && !stopWords.has(word));
+            
+            //Write to Google Storage
+            const fileName = 'mapper_input_' + idx;
+            bucket.file(`reader_output/${fileName}`)
+                .save(words.join(','), (err) => console.error(err));
+
+            //Check finished
+            if (idx === files[0].length - 1) res.status(200).send('DONE');
         });
     });
 };
