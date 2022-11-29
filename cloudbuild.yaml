@@ -1,7 +1,7 @@
 steps:
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  args: [gcloud, functions, deploy, reader, --region=europe-west2, --source=https://source.cloud.google.com/cloudcomputingcw-368814/github_gustavo-bertoldi_cc-mapreducer/+/master:Reader/, --trigger-http, --runtime=nodejs16]
+  args: [gcloud, functions, deploy, reader, --region=europe-west2, --source=Reader/, --trigger-http, --runtime=nodejs16]
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  args: [gcloud, functions, deploy, mapper, --region=europe-west2, --source=https://source.cloud.google.com/cloudcomputingcw-368814/github_gustavo-bertoldi_cc-mapreducer/+/master:Mapper/, --trigger-topic=MapperInput, --runtime=nodejs16]
+  args: [gcloud, functions, deploy, mapper, --region=europe-west2, --source=Mapper/, --trigger-topic=MapperInput, --runtime=nodejs16]
 options:
   logging: CLOUD_LOGGING_ONLY
