@@ -2,6 +2,6 @@ steps:
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   args: [gcloud, functions, deploy, reader, --region=europe-west2, --source=src/, --trigger-http, --runtime=nodejs16, --entry-point=read, --env-vars-file .env.gc.yaml]
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  args: [gcloud, functions, deploy, mapper, --region=europe-west2, --source=src/, --trigger-topic=MapperInput, --runtime=nodejs16, --entry-point=map, , --env-vars-file .env.gc.yaml]
+  args: [gcloud, functions, deploy, mapper, --region=europe-west2, --source=src/, --trigger-topic=MapperInput, --runtime=nodejs16, --entry-point=map, --env-vars-file .env.gc.yaml]
 options:
   logging: CLOUD_LOGGING_ONLY
