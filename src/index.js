@@ -86,7 +86,7 @@ function _reduce(input) {
 
     return Object.keys(map).reduce((acc, key) => {
         if (map[key].size > 1) {
-            acc.push(`${key}: { ${[...map[key]].join(', ')} }\n`);
+            acc += `${key}: { ${[...map[key]].join(', ')} }\n`;
         }
         return acc;
     }, "");
