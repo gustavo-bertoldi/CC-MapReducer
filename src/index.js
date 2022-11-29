@@ -80,8 +80,9 @@ function _shuffle(input, nbOutputs = 5) {
 // directory to be used as input for the mappers.
 exports.read = async (req, res) => {
     const stopWords = await getStopWords();
-    const files = await bucket.getFiles({prefix: process.env.INPUT_PATH});
-    files[0].forEach((file, idx) => {
+    const files = (await bucket.getFiles({prefix: process.env.INPUT_PATH}))[0]
+        .filter(file => file.name.endsWith('.txt'));
+    files.forEach((file, idx) => {
         file.download((err, data) => {
             if (err) {
                 console.error(err);
@@ -91,10 +92,11 @@ exports.read = async (req, res) => {
 
             const output = _read(data.toString(), stopWords);
             const outputFileName = `map_${idx}`;
-            const outputFilePath = `${process.env.OUTPUT_PATH}/${outputFileName}`;
+            const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
                 .then(() => {
-                    mapperTopic.publishMessage({data: Buffer.from(outputFileName)});
+                    mapperTopic.publishMessage({data: Buffer.from(outputFileName)})
+                        .catch(err => console.error(err));
                     if (idx === files[0].length - 1) 
                         res.status(200).send(`Reading completed. Generated ${idx + 1} mapper inputs.`);
                 });
@@ -107,7 +109,7 @@ exports.read = async (req, res) => {
 // containing the file with the mapped content.
 exports.map = (message, context, callback) => {
     const fileName = message.data.toString();
-    bucket.file(`${process.env.OUTPUT_PATH}/${fileName}`).download((err, data) => {
+    bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
         if (err) {
             console.error(err);
             return;
@@ -117,14 +119,15 @@ exports.map = (message, context, callback) => {
         const outputFileName = `shuf_${fileName.split('_')[1]}`;
         const outputFilePath = `${process.env.OUTPUT_PATH}/${outputFileName}`;
         bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-            .then(() => shufflerTopic.publishMessage({data: Buffer.from(outputFileName)}));
+            .then(() => shufflerTopic.publishMessage({data: Buffer.from(outputFileName)})
+                .catch(err => console.error(err)));
     });
 };
 
 
 exports.shuffle = (message, context, callback) => {
     const fileName = message.data.toString();
-    bucket.file(`${process.env.OUTPUT_PATH}/${fileName}`).download((err, data) => {
+    bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
         if (err) {
             console.error(err);
             return;
@@ -133,9 +136,10 @@ exports.shuffle = (message, context, callback) => {
         const outputs = _shuffle(data.toString());
         outputs.forEach((output, idx) => {
             const outputFileName = `red_${idx}`;
-            const outputFilePath = `${process.env.OUTPUT_PATH}/${outputFileName}`;
+            const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
             bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-                .then(() => reducerTopic.publishMessage({data: Buffer.from(outputFileName)}));
+                .then(() => reducerTopic.publishMessage({data: Buffer.from(outputFileName)})
+                    .catch(err => console.error(err)));
         });
     });
 };
