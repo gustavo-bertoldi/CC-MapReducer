@@ -1,6 +1,5 @@
 const { Storage } = require('@google-cloud/storage');
 const { PubSub } = require('@google-cloud/pubsub'); 
-const fs = require('fs');
 const crypto = require('crypto');
 require('dotenv').config();
 
@@ -12,7 +11,7 @@ if (!process.env.REDUCER_INPUT_TOPIC) throw new Error("REDUCER_INPUT_TOPIC envir
 if (!process.env.STOP_WORDS_PATH) throw new Error("STOP_WORDS_PATH environment variable not set");
 if (!process.env.INPUT_PATH) throw new Error("INPUT_PATH environment variable not set");
 if (!process.env.OUTPUT_PATH) throw new Error("OUTPUT_PATH environment variable not set");
-if (!process.env.SHUFFLER_HASH_MODULO) process.env.SHUFFLER_HASH_MODULO = 10;
+if (!process.env.SHUFFLER_HASH_MODULO) process.env.SHUFFLER_HASH_MODULO = "10";
 
 const config = {
     projectId: process.env.PROJECT_ID,
@@ -224,4 +223,9 @@ exports.reduce = async (message, context, callback) => {
             console.error("Failed to save output file: ", err);
             return -1;
         });
+}
+
+exports.clean = async (message, context, callback) => {
+    console.log("Cleaning up...");
+    
 }
