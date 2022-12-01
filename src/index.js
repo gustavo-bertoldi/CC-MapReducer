@@ -11,7 +11,7 @@ if (!process.env.REDUCER_INPUT_TOPIC) throw new Error("REDUCER_INPUT_TOPIC envir
 if (!process.env.STOP_WORDS_PATH) throw new Error("STOP_WORDS_PATH environment variable not set");
 if (!process.env.INPUT_PATH) throw new Error("INPUT_PATH environment variable not set");
 if (!process.env.OUTPUT_PATH) throw new Error("OUTPUT_PATH environment variable not set");
-if (!process.env.SHUFFLER_HASH_MODULO) process.env.SHUFFLER_HASH_MODULO = "10";
+if (!process.env.SHUFFLER_HASH_MODULO) process.env.SHUFFLER_HASH_MODULO = "5";
 
 const config = {
     projectId: process.env.PROJECT_ID,
@@ -62,7 +62,7 @@ function _map(input) {
 // into buckets, where the same words always go to the same bucket. The output is
 // an array of length nbOutputs where each element is a comma separated string in the
 // same format as the input.
-function _shuffle(input, nbOutputs = process.env.SHUFFLER_HASH_MODULO) {
+function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO)) {
     return input.split(',').reduce((acc, pair, idx) => {
         const [sorted, _] = pair.split(':');
         const hash = crypto.createHash('md5').update(sorted).digest('hex'); 
