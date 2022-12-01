@@ -8,6 +8,7 @@ if (!process.env.BUCKET_NAME) throw new Error("BUCKET_NAME environment variable 
 if (!process.env.MAPPER_INPUT_TOPIC) throw new Error("MAPPER_INPUT_TOPIC environment variable not set");
 if (!process.env.SHUFFLER_INPUT_TOPIC) throw new Error("SHUFFLER_INPUT_TOPIC environment variable not set");
 if (!process.env.REDUCER_INPUT_TOPIC) throw new Error("REDUCER_INPUT_TOPIC environment variable not set");
+if (!process.env.CLEANER_TOPIC) throw new Error("CLEANER_TOPIC environment variable not set");
 if (!process.env.STOP_WORDS_PATH) throw new Error("STOP_WORDS_PATH environment variable not set");
 if (!process.env.INPUT_PATH) throw new Error("INPUT_PATH environment variable not set");
 if (!process.env.OUTPUT_PATH) throw new Error("OUTPUT_PATH environment variable not set");
@@ -27,6 +28,7 @@ const pubsub = new PubSub(config);
 const mapperTopic = pubsub.topic(process.env.MAPPER_INPUT_TOPIC);
 const shufflerTopic = pubsub.topic(process.env.SHUFFLER_INPUT_TOPIC);
 const reducerTopic = pubsub.topic(process.env.REDUCER_INPUT_TOPIC);
+const cleanerTopic = pubsub.topic(process.env.CLEANER_TOPIC);
 
 /**
  * Download stop words from Google Cloud Storage. Uses a set for efficient lookups
@@ -193,13 +195,12 @@ exports.shuffle = async (message, context, callback) => {
     const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
     const shufflerOutputs = (await bucket.getFiles({prefix: shufflerOutputPrefix}))[0].length;
     
-    console.log("Shuffler outputs: ", shufflerOutputs);
-    console.log("Expected shuffler outputs: ", expectedShufflerOutputs);
     if (shufflerOutputs === expectedShufflerOutputs) {
         // Trigger reducers
         for (let i = 0; i < _message.nbInputs; i++) {
             const jsonMessage = {
-                targetPrefix:  `${targetFile.split('/')[0]}/red_${i}`
+                targetPrefix:  `${targetFile.split('/')[0]}/red_${i}`,
+                nbInputs: _message.nbInputs
             }
             await reducerTopic.publishMessage({json: jsonMessage});
         }
@@ -224,10 +225,35 @@ exports.reduce = async (message, context, callback) => {
     // Write the output to the output directory in Google Cloud Storage
     const outputFilePath = `${_message.targetPrefix.split('/')[0]}/result_${_message.targetPrefix.split('_')[1]}`;
     await bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 });
-    console.log('File reduced and published to cleaner: ', outputFilePath);
+    console.log('File reduced: ', outputFilePath);
+
+    //Check all reducers finished
+    const reducerOutputPrefix = `${_message.targetPrefix.split('/')[0]}/result_`;
+    await bucket.getFiles({prefix: reducerOutputPrefix});
+    if (files.length === _message.nbInputs) {
+        console.log('All reducers finished. Starting cleanup...');
+        const jsonMessage = {
+            targetPrefix: _message.targetPrefix.split('/')[0]
+        }
+        await cleanerTopic.publishMessage({json: jsonMessage});
+    }
 }
 
 exports.clean = async (message, context, callback) => {
+    // Get trigger parameters
+    const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
+    const reducerOutputPrefix = `${_message.targetPrefix}/result_`;
+    const files = (await bucket.getFiles({prefix: reducerOutputPrefix}))[0];
+    const finalResult = (await Promise.all(files.map(file => file.download())))
+        .map(d => d[0].toString()).join('');
+
+    // Write the output to the output directory in Google Cloud Storage
+    const outputName = `${_message.targetPrefix}.txt`;
+    const outputFilePath = process.env.OUTPUT_PATH + outputName;
+    await bucket.file(outputFilePath).save(finalResult, { resumable: false, timeout: 30000 });
+    console.log('Final result saved to: ', outputFilePath);
+
+    // Delete all temporary files
     console.log("Cleaning up...");
-    bucket.deleteFiles({prefix: process.env.TMP_OUTPUT_PATH});
+    await bucket.deleteFiles({prefix: _message.targetPrefix});
 }

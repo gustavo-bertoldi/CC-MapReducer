@@ -11,5 +11,8 @@ steps:
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   args: [gcloud, functions, deploy, reducer, --region=europe-west2, --source=src/, --trigger-topic=ReducerInput, --runtime=nodejs16, --entry-point=reduce, --env-vars-file=src/.env.gc.yaml]
   waitFor: ['-']
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args: [gcloud, functions, deploy, cleaner, --region=europe-west2, --source=src/, --trigger-topic=CleanerTopic, --runtime=nodejs16, --entry-point=clean, --env-vars-file=src/.env.gc.yaml]
+  waitFor: ['-']
 options:
   logging: CLOUD_LOGGING_ONLY
