@@ -23,12 +23,8 @@ const config = {
 const storage = new Storage(config);
 const bucket = storage.bucket(process.env.BUCKET_NAME);
 
-//Set up the pubsub client and topics
+//Set up the pubsub client
 const pubsub = new PubSub(config);
-const mapperTopic = pubsub.topic(process.env.MAPPER_INPUT_TOPIC);
-const shufflerTopic = pubsub.topic(process.env.SHUFFLER_INPUT_TOPIC);
-const reducerTopic = pubsub.topic(process.env.REDUCER_INPUT_TOPIC);
-const cleanerTopic = pubsub.topic(process.env.CLEANER_TOPIC);
 
 /**
  * Download stop words from Google Cloud Storage. Uses a set for efficient lookups
@@ -117,14 +113,35 @@ function _reduce(input) {
     }, "");
 };
 
-// Reads all files from the input directory, filters the words and writes the 
-// output in format as a comma separated string of valid words to the output 
-// directory to be used as input for the mappers.
-exports.read = async (req, res) => {
+exports.start = async (req, res) => {
+    const readerTopic = pubsub.topic(process.env.READER_TOPIC);
+
     // Create temporary output directory for this run
     console.log('Starting pipeline...');
     const tmpOutputPath = crypto.randomBytes(4).toString("hex") + '/';
     console.log(`Pipeline tmp output path: ${tmpOutputPath}`);
+
+    //Trigger one reader for each file
+    const files = (await bucket.getFiles({prefix: process.env.INPUT_PATH}))[0]
+        .filter(file => file.name.endsWith('.txt'));
+    files.forEach(file => {
+        const jsonMessage = {
+            targetFile: file.name,
+            nbInputs: files.length
+        }
+        readerTopic.publishMessage({json: jsonMessage});
+    });
+};
+
+// Reads all files from the input directory, filters the words and writes the 
+// output in format as a comma separated string of valid words to the output 
+// directory to be used as input for the mappers.
+exports.read = async (message, context, callback) => {
+    // Create temporary output directory for this run
+    console.log('Starting pipeline...');
+    const tmpOutputPath = crypto.randomBytes(4).toString("hex") + '/';
+    console.log(`Pipeline tmp output path: ${tmpOutputPath}`);
+    const mapperTopic = pubsub.topic(process.env.MAPPER_INPUT_TOPIC);
 
     // Download stop words from Google Cloud Storage
     const stopWords = await getStopWords();
@@ -148,7 +165,7 @@ exports.read = async (req, res) => {
                     mapperTopic.publishMessage({json: jsonMessage})
                         .catch(err => console.error(err));
                     if (idx === files.length - 1) 
-                        res.status(200).send(`Reading completed. Generated ${idx + 1} mapper inputs.`);
+                        console.log(`Reading completed. Generated ${idx + 1} mapper inputs.`);
                 });
     });
 };
@@ -170,6 +187,7 @@ exports.map = async (message, context, callback) => {
         targetFile: outputFilePath,
         nbInputs: _message.nbInputs
     }
+    const shufflerTopic = pubsub.topic(process.env.SHUFFLER_INPUT_TOPIC);
     await shufflerTopic.publishMessage({json: jsonMessage});
     console.log("File mapped and published to shuffler: ", outputFilePath);
 };
@@ -196,6 +214,7 @@ exports.shuffle = async (message, context, callback) => {
     const shufflerOutputs = (await bucket.getFiles({prefix: shufflerOutputPrefix}))[0].length;
     
     if (shufflerOutputs === expectedShufflerOutputs) {
+        const reducerTopic = pubsub.topic(process.env.REDUCER_INPUT_TOPIC);
         // Trigger reducers
         for (let i = 0; i < _message.nbInputs; i++) {
             const jsonMessage = {
@@ -235,6 +254,7 @@ exports.reduce = async (message, context, callback) => {
         const jsonMessage = {
             targetPrefix: _message.targetPrefix.split('/')[0]
         }
+        const cleanerTopic = pubsub.topic(process.env.CLEANER_TOPIC);
         await cleanerTopic.publishMessage({json: jsonMessage});
     }
 }
