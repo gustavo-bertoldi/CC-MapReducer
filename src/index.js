@@ -28,15 +28,22 @@ const mapperTopic = pubsub.topic(process.env.MAPPER_INPUT_TOPIC);
 const shufflerTopic = pubsub.topic(process.env.SHUFFLER_INPUT_TOPIC);
 const reducerTopic = pubsub.topic(process.env.REDUCER_INPUT_TOPIC);
 
-// Download stop words from Google Cloud Storage
-// Uses a set for efficient lookups
+/**
+ * Download stop words from Google Cloud Storage. Uses a set for efficient lookups
+ * @return {Set<string>} The set of stop words
+ */
 async function getStopWords() {
     const stopWords = await bucket.file(process.env.STOP_WORDS_PATH).download();
     return new Set(stopWords.toString().split(','));
 }
 
-// Filters the input string to remove stop words and non-alphabetic characters.
-// Returns a comma separated string of valid words to be used as input of the mappers.
+/**
+ * Filters the input string to remove stop words and non-alphabetic characters.
+ * Returns a comma separated string of valid words to be used as input of the mappers.
+ * @param {string} str the input file in string format
+ * @param {Set<string>} stopWords the set of stop words
+ * @returns {string} the filtered string
+ */
 function _read(str, stopWords) {
     return str.toLowerCase()
         .replace(/'/,'') // Remove apostrophes
@@ -49,6 +56,13 @@ function _read(str, stopWords) {
 // Return a comma separated string containing a pair of words in the format
 // word1:word2. Where word1 is the alphabetically sorted word and word2 is the
 // original word. To be used as input for the shuffler.
+/**
+ * Return a comma separated string containing a pair of words in the format
+ * word1:word2. Where word1 is the alphabetically sorted word and word2 is the
+ * original word. To be used as input for the shuffler.
+ * @param {string} input mapper input in the format of a comma separated string of words
+ * @returns {string} 
+ */
 function _map(input) {
     return input.split(',').map(word => {
         const alphabeticalOrder = [...word].sort().join('');
@@ -56,12 +70,17 @@ function _map(input) {
     }).join(',');
 }
 
-// Processes an input in the format of a comma separated string of pairs of words
-// in the format word1:word2. Where word1 is the alphabetically sorted word and
-// word2 is the original word. Using the hash of the sorted word, groups the words
-// into buckets, where the same words always go to the same bucket. The output is
-// an array of length nbOutputs where each element is a comma separated string in the
-// same format as the input.
+/**
+ * Processes an input in the format of a comma separated string of pairs of words
+ * in the format word1:word2. Where word1 is the alphabetically sorted word and
+ * word2 is the original word. Using the hash of the sorted word, groups the words
+ * into buckets, where the same words always go to the same bucket. The output is
+ * an array of length nbOutputs where each element is a comma separated string in the
+ * same format as the input.
+ * @param {string} input 
+ * @param {number} nbOutputs 
+ * @returns {string[]}
+ */
 function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO)) {
     return input.split(',').reduce((acc, pair, idx) => {
         const [sorted, _] = pair.split(':');
@@ -74,6 +93,11 @@ function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO))
     }, new Array(nbOutputs));
 };
 
+/**
+ * 
+ * @param {string} input 
+ * @returns {{string: Set<string>}}
+ */
 function _reduce(input) {
     const map = input.split(',').reduce((acc, pair) => {
         if (!pair) return acc;
@@ -158,28 +182,29 @@ exports.shuffle = async (message, context, callback) => {
     const data = (await bucket.file(targetFile).download())[0].toString();
     const outputs = _shuffle(data);
     const outputFilePrefix = `${targetFile.split('/')[0]}/red_${targetFile.split('_')[1]}_`;
-    outputs.forEach(async (output, idx) => {
-        const outputFileName = outputFilePrefix + idx;
-        await bucket.file(outputFileName).save(output, { resumable: false, timeout: 30000 });
-
-        //Verify all shufflers have finished
-        const shufflerOutputPrefix = `${targetFile.split('/')[0]}/red_`;
-        const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
-        const shufflerOutputs = (await bucket.getFiles({prefix: shufflerOutputPrefix}))[0].length;
-        console.log("Shuffler outputs: ", shufflerOutputs);
-        console.log("Expected shuffler outputs: ", expectedShufflerOutputs);
-        if (shufflerOutputs === expectedShufflerOutputs) {
-            // Trigger reducers
-            for (let i = 0; i < _message.nbInputs; i++) {
-                const jsonMessage = {
-                    targetPrefix:  `${targetFile.split('/')[0]}/red_${i}`
-                }
-                await reducerTopic.publishMessage({json: jsonMessage});
-                console.log('All shufflers finished and published to reducer.');
-            }
-        }
-    });
+    
+    // Save all outputs to a separate file in Google Cloud Storage
+    await Promise.all(outputs.map((output, idx) => 
+        bucket.file(outputFilePrefix + idx).save(output, { resumable: false, timeout: 30000 })));
     console.log('File shuffled: ', outputFilePrefix + '_x');
+
+    //Verify all shufflers have finished
+    const shufflerOutputPrefix = `${targetFile.split('/')[0]}/red_`;
+    const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
+    const shufflerOutputs = (await bucket.getFiles({prefix: shufflerOutputPrefix}))[0].length;
+    
+    console.log("Shuffler outputs: ", shufflerOutputs);
+    console.log("Expected shuffler outputs: ", expectedShufflerOutputs);
+    if (shufflerOutputs === expectedShufflerOutputs) {
+        // Trigger reducers
+        for (let i = 0; i < _message.nbInputs; i++) {
+            const jsonMessage = {
+                targetPrefix:  `${targetFile.split('/')[0]}/red_${i}`
+            }
+            await reducerTopic.publishMessage({json: jsonMessage});
+        }
+        console.log('All shufflers finished and published to reducer.');
+    }
 };
 
 exports.reduce = async (message, context, callback) => {
