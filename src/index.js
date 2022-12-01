@@ -135,10 +135,6 @@ exports.start = async (req, res) => {
 // output in format as a comma separated string of valid words to the output 
 // directory to be used as input for the mappers.
 exports.read = async (message, context, callback) => {
-    // Create temporary output directory for this run
-    console.log('Starting pipeline...');
-    const tmpOutputPath = crypto.randomBytes(4).toString("hex") + '/';
-    console.log(`Pipeline tmp output path: ${tmpOutputPath}`);
     const mapperTopic = pubsub.topic(process.env.MAPPER_INPUT_TOPIC);
 
     // Parse message
@@ -150,7 +146,7 @@ exports.read = async (message, context, callback) => {
     const data = (await bucket.file(targetFile).download())[0].toString();
     const output = _read(data, stopWords);
     const outputFileName = `map_${targetFile.split('/')[1].split('.')[0]}`;
-    const outputFilePath = tmpOutputPath + outputFileName;
+    const outputFilePath = _message.tmpOutputPath + outputFileName;
     await bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 });
 
     const jsonMessage = {
