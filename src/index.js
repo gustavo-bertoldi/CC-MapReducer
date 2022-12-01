@@ -5,6 +5,7 @@ require('dotenv').config();
 
 if (!process.env.PROJECT_ID) throw new Error("PROJECT_ID environment variable not set");
 if (!process.env.BUCKET_NAME) throw new Error("BUCKET_NAME environment variable not set");
+if (!process.env.READER_INPUT_TOPIC) throw new Error("READER_INPUT_TOPIC environment variable not set");
 if (!process.env.MAPPER_INPUT_TOPIC) throw new Error("MAPPER_INPUT_TOPIC environment variable not set");
 if (!process.env.SHUFFLER_INPUT_TOPIC) throw new Error("SHUFFLER_INPUT_TOPIC environment variable not set");
 if (!process.env.REDUCER_INPUT_TOPIC) throw new Error("REDUCER_INPUT_TOPIC environment variable not set");
@@ -114,7 +115,7 @@ function _reduce(input) {
 };
 
 exports.start = async (req, res) => {
-    const readerTopic = pubsub.topic(process.env.READER_TOPIC);
+    const readerTopic = pubsub.topic(process.env.READER_INPUT_TOPIC);
 
     // Create temporary output directory for this run
     console.log('Starting pipeline...');
