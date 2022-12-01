@@ -233,7 +233,7 @@ exports.shuffle = async (message, context, callback) => {
 
         //Verify all shufflers have finished
         const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
-        const shufflerOutputs = (await bucket.getFiles({ prefix: outputFilesPrefix }))[0].length;
+        const shufflerOutputs = (await bucket.getFiles({ prefix: outputFilesPrefix.split('_')[0] }))[0].length;
         console.log('Shuffler outputs: ', shufflerOutputs, ' Expected: ', expectedShufflerOutputs);
         if (shufflerOutputs === expectedShufflerOutputs) {
             // All shufflers have finished, trigger the reducers
