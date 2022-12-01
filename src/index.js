@@ -166,6 +166,8 @@ exports.shuffle = async (message, context, callback) => {
         const shufflerOutputPrefix = `${targetFile.split('/')[0]}/red_`;
         const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
         const shufflerOutputs = (await bucket.getFiles({prefix: shufflerOutputPrefix}))[0].length;
+        console.log("Shuffler outputs: ", shufflerOutputs);
+        console.log("Expected shuffler outputs: ", expectedShufflerOutputs);
         if (shufflerOutputs === expectedShufflerOutputs) {
             // Trigger reducers
             for (let i = 0; i < _message.nbInputs; i++) {
