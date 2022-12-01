@@ -278,7 +278,7 @@ exports.reduce = async (message, context, callback) => {
         console.log('Finished reducing for hash index: ', _message.targetIdx);
 
         //Check all reducers finished
-        const reducerOutputPrefix = `${_message.outputDir}/result_`;
+        const reducerOutputPrefix = `${_message.outputDir}result_`;
         const reducerOutputs = (await bucket.getFiles({ prefix: reducerOutputPrefix }))[0];
         if (reducerOutputs.length === process.env.SHUFFLER_HASH_MODULO) {
             console.log('All reducers finished. Starting cleanup...');
