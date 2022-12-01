@@ -229,8 +229,8 @@ exports.reduce = async (message, context, callback) => {
 
     //Check all reducers finished
     const reducerOutputPrefix = `${_message.targetPrefix.split('/')[0]}/result_`;
-    await bucket.getFiles({prefix: reducerOutputPrefix});
-    if (files.length === _message.nbInputs) {
+    const reducerOutputs = (await bucket.getFiles({prefix: reducerOutputPrefix}))[0];
+    if (reducerOutputs.length === _message.nbInputs) {
         console.log('All reducers finished. Starting cleanup...');
         const jsonMessage = {
             targetPrefix: _message.targetPrefix.split('/')[0]
