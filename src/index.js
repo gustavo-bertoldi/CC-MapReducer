@@ -280,6 +280,8 @@ exports.reduce = async (message, context, callback) => {
         //Check all reducers finished
         const reducerOutputPrefix = `${_message.outputDir}result_`;
         const reducerOutputs = (await bucket.getFiles({ prefix: reducerOutputPrefix }))[0];
+        console.log('Reducer prefix: ', reducerOutputPrefix);
+        console.log('Reducer outputs: ', reducerOutputs.length, ' Expected: ', process.env.SHUFFLER_HASH_MODULO);
         if (reducerOutputs.length === process.env.SHUFFLER_HASH_MODULO) {
             console.log('All reducers finished. Starting cleanup...');
             const jsonMessage = {
