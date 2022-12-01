@@ -95,24 +95,28 @@ function _reduce(input) {
 // output in format as a comma separated string of valid words to the output 
 // directory to be used as input for the mappers.
 exports.read = async (req, res) => {
+    // Create temporary output directory for this run
+    console.log('Starting pipeline...');
+    const tmpOutputPath = crypto.randomBytes(4).toString("hex") + '/';
+    console.log(`Pipeline tmp output path: ${tmpOutputPath}`);
+
+    // Download stop words from Google Cloud Storage
     const stopWords = await getStopWords();
+
+    // Read all files from the input directory
     const files = (await bucket.getFiles({prefix: process.env.INPUT_PATH}))[0]
         .filter(file => file.name.endsWith('.txt'));
-    files.forEach((file, idx) => {
-        file.download((err, data) => {
-            if (err) {
-                console.error(err);
-                res.status(500).send(err);
-                return;
-            }
 
-            const output = _read(data.toString(), stopWords);
-            const outputFileName = `map_${idx}`;
-            const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
-            bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
+    files.forEach(async (file, idx) => {
+        const data = await file.download();
+        const output = _read(data[0].toString(), stopWords);
+        const outputFileName = `map_${idx}`;
+        const outputFilePath = tmpOutputPath + outputFileName;
+
+        bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
                 .then(() => {
                     const jsonMessage = {
-                        targetFile: outputFileName,
+                        targetFile: outputFilePath,
                         nbInputs: files.length
                     }
                     mapperTopic.publishMessage({json: jsonMessage})
@@ -120,90 +124,68 @@ exports.read = async (req, res) => {
                     if (idx === files.length - 1) 
                         res.status(200).send(`Reading completed. Generated ${idx + 1} mapper inputs.`);
                 });
-        });
     });
 };
 
 // Triggered by a message to the mapper input topic containing the name of the file
 // to be mapped. On conclusion, published a message to the shuffler input topic
 // containing the file with the mapped content.
-exports.map = (message, context, callback) => {
+exports.map = async (message, context, callback) => {
+    // Get trigger parameters
     const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
-    const fileName = _message.targetFile;
-    console.log("Mapping file: ", fileName);
-    bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
-        if (err) {
-            console.error(err);
-            return - 1;
-        }
+    const targetFile = _message.targetFile;
 
-        const output = _map(data.toString());
-        const outputFileName = `shuf_${fileName.split('_')[1]}`;
-        const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
-        bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-            .then(() => {
-                const jsonMessage = {
-                    targetFile: outputFileName,
-                    nbInputs: _message.nbInputs
-                } 
-                shufflerTopic.publishMessage({json: jsonMessage})
-                .then(() => {
-                    return 1;
-                })
-                .catch(err => {
-                    console.error(err);
-                    return -1;
-                })
-            });
-    });
+    console.log("Mapping file: ", targetFile);
+    const data = (await bucket.file(targetFile).download())[0].toString();
+    const output = _map(data);
+    const outputFilePath = `${targetFile.split('/')[0]}/shuf_${targetFile.split('_')[1]}`;
+    await bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 });
+    const jsonMessage = {
+        targetFile: outputFilePath,
+        nbInputs: _message.nbInputs
+    }
+    await shufflerTopic.publishMessage({json: jsonMessage});
+    console.log("File mapped and published to shuffler: ", outputFilePath);
 };
 
 
-exports.shuffle = (message, context, callback) => {
+exports.shuffle = async (message, context, callback) => {
+    // Get trigger parameters
     const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
-    const fileName = _message.targetFile;
+    const targetFile = _message.targetFile;
+
     console.log("Shuffling file: ", fileName);
-    bucket.file(`${process.env.OUTPUT_PATH}${fileName}`).download((err, data) => {
-        if (err) {
-            console.error(err);
-            return;
+    const data = (await bucket.file(targetFile).download())[0].toString();
+    const outputs = _shuffle(data);
+    const outputFilePrefix = `${targetFile.split('/')[0]}/red_${targetFile.split('_')[1]}_`;
+    outputs.forEach(async (output, idx) => {
+        const outputFileName = outputFilePrefix + idx;
+        await bucket.file(outputFileName).save(output, { resumable: false, timeout: 30000 });
+
+        //Verify all shufflers have finished
+        const shufflerOutputPrefix = `${targetFile.split('/')[0]}/red_`;
+        const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
+        const shufflerOutputs = (await bucket.getFiles({prefix: shufflerOutputPrefix}))[0].length;
+        if (shufflerOutputs === expectedShufflerOutputs) {
+            // Trigger reducers
+            for (let i = 0; i < _message.nbInputs; i++) {
+                const jsonMessage = {
+                    targetPrefix:  `${targetFile.split('/')[0]}/red_${i}`
+                }
+                await reducerTopic.publishMessage({json: jsonMessage});
+                console.log('All shufflers finished and published to reducer.');
+            }
         }
-
-        const outputs = _shuffle(data.toString());
-        outputs.forEach((output, idx) => {
-            const outputFilePrefix = `red_${fileName.split('_')[1]}_`;
-            const outputFileName = outputFilePrefix + idx;
-            const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
-            bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-                .then(async () => {
-                    console.log(`Shuffled to ${outputFileName}`);
-
-                    // Verify if all shufflers have finished to trigger the reducers
-                    const shufflerOutputsPrefix = `${process.env.OUTPUT_PATH}red_`;
-                    const nbShufflerOutputs = (await bucket.getFiles({prefix: shufflerOutputsPrefix}))[0].length;
-                    const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
-                    if (idx === outputs.length - 1 && nbShufflerOutputs === expectedShufflerOutputs) {
-                        // Publish message to trigger all the reducers
-                        for (let i = 0; i < _message.nbInputs; i++) {
-                            const jsonMessage = {
-                                targetPrefix: outputFilePrefix,
-                                nbInputs: _message.nbInputs
-                            }
-                            reducerTopic.publishMessage({json: jsonMessage})
-                                .catch(err => console.error(err));
-                        }
-                    }
-                });
-        });
     });
+    console.log('File shuffled: ', outputFileName + '_x');
 };
 
 exports.reduce = async (message, context, callback) => {
+    // Get trigger parameters
     const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
-    const targetPrefix = _message.targetPrefix;
-    const files = (await bucket.getFiles({prefix: targetPrefix}))[0];
+    const files = (await bucket.getFiles({prefix: _message.targetPrefix}))[0];
 
-    console.log("Reducing files: ", `${targetPrefix}_x`);
+    console.log("Reducing files with prefix: ", `${_message.targetPrefix}`);
 
     // Download and concatenate all the files
     const downloads = files.map(file => file.download());
@@ -213,19 +195,12 @@ exports.reduce = async (message, context, callback) => {
     const output = _reduce(data);
 
     // Write the output to the output directory in Google Cloud Storage
-    const outputFileName = `result_${targetPrefix.split('_')[1]}`;
-    const outputFilePath = `${process.env.OUTPUT_PATH}${outputFileName}`;
-    bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-        .then(() => {
-            console.log(`Reduced to ${outputFileName}`);
-            return 1;
-        }).catch(err => {
-            console.error("Failed to save output file: ", err);
-            return -1;
-        });
+    const outputFilePath = `${_message.targetPrefix.split('/')[0]}/result_${_message.targetPrefix.split('_')[1]}`;
+    await bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 });
+    console.log('File reduced and published to cleaner: ', outputFilePath);
 }
 
 exports.clean = async (message, context, callback) => {
     console.log("Cleaning up...");
-    
+    bucket.deleteFiles({prefix: process.env.TMP_OUTPUT_PATH});
 }
