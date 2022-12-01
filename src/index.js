@@ -120,9 +120,9 @@ exports.start = async (req, res) => {
         const stopWords = (await bucket.file(process.env.STOP_WORDS_PATH).download()).toString();
     
         //Trigger one reader for each file by publishing a message to the reader topic
-        const inputs = (await bucket.getFiles({ prefix: process.env.INPUT_PATH }))[0];
-        inputs.filter(file => file.name.endsWith('.txt'))
-            .forEach(async file => {
+        const inputs = (await bucket.getFiles({ prefix: process.env.INPUT_PATH }))[0]
+            .filter(file => file.name.endsWith('.txt'));
+        inputs.forEach(async file => {
                 const jsonMessage = {
                     targetFile: file.name,
                     outputDir: tmpOutputDir,
