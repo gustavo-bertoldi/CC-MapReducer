@@ -28,15 +28,6 @@ const bucket = storage.bucket(process.env.BUCKET_NAME);
 const pubsub = new PubSub(config);
 
 /**
- * Download stop words from Google Cloud Storage. Uses a set for efficient lookups
- * @return {Set<string>} The set of stop words
- */
-async function getStopWords() {
-    const stopWords = await bucket.file(process.env.STOP_WORDS_PATH).download();
-    return new Set(stopWords.toString().split(','));
-}
-
-/**
  * Filters the input string to remove stop words and non-alphabetic characters.
  * Returns a comma separated string of valid words to be used as input of the mappers.
  * @param {string} str the input file in string format
@@ -122,16 +113,22 @@ exports.start = async (req, res) => {
     const tmpOutputPath = crypto.randomBytes(4).toString("hex") + '/';
     console.log(`Pipeline tmp output path: ${tmpOutputPath}`);
 
+    //Download stop words file
+    const stopWords = (await bucket.file(process.env.STOP_WORDS_PATH).download()).toString();
+
     //Trigger one reader for each file
     const files = (await bucket.getFiles({prefix: process.env.INPUT_PATH}))[0]
         .filter(file => file.name.endsWith('.txt'));
-    files.forEach(file => {
+    files.forEach(async file => {
         const jsonMessage = {
             targetFile: file.name,
-            nbInputs: files.length
+            nbInputs: files.length,
+            tmpOutputPath: tmpOutputPath,
+            stopWords: stopWords
         }
-        readerTopic.publishMessage({json: jsonMessage});
+        await readerTopic.publishMessage({json: jsonMessage});
     });
+    res.status(200).send('Pipeline started for ' + files.length + ' files');
 };
 
 // Reads all files from the input directory, filters the words and writes the 
@@ -144,31 +141,24 @@ exports.read = async (message, context, callback) => {
     console.log(`Pipeline tmp output path: ${tmpOutputPath}`);
     const mapperTopic = pubsub.topic(process.env.MAPPER_INPUT_TOPIC);
 
-    // Download stop words from Google Cloud Storage
-    const stopWords = await getStopWords();
+    // Parse message
+    const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
+    const targetFile = _message.targetFile;
+    const stopWords = new Set(_message.stopWords.split(','));
 
     // Read all files from the input directory
-    const files = (await bucket.getFiles({prefix: process.env.INPUT_PATH}))[0]
-        .filter(file => file.name.endsWith('.txt'));
+    const data = (await bucket.file(targetFile).download())[0].toString();
+    const output = _read(data, stopWords);
+    const outputFileName = `map_${targetFile.split('/')[1].split('.')[0]}`;
+    const outputFilePath = tmpOutputPath + outputFileName;
+    await bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 });
 
-    files.forEach(async (file, idx) => {
-        const data = await file.download();
-        const output = _read(data[0].toString(), stopWords);
-        const outputFileName = `map_${idx}`;
-        const outputFilePath = tmpOutputPath + outputFileName;
-
-        bucket.file(outputFilePath).save(output, { resumable: false, timeout: 30000 })
-                .then(() => {
-                    const jsonMessage = {
-                        targetFile: outputFilePath,
-                        nbInputs: files.length
-                    }
-                    mapperTopic.publishMessage({json: jsonMessage})
-                        .catch(err => console.error(err));
-                    if (idx === files.length - 1) 
-                        console.log(`Reading completed. Generated ${idx + 1} mapper inputs.`);
-                });
-    });
+    const jsonMessage = {
+        targetFile: outputFilePath,
+        nbInputs: _message.nbInputs,
+    }
+    await mapperTopic.publishMessage({json: jsonMessage});
+    console.log('Filer read and published to mapper: ', outputFilePath);
 };
 
 // Triggered by a message to the mapper input topic containing the name of the file

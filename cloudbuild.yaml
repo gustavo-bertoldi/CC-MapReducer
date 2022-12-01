@@ -3,7 +3,7 @@ steps:
   args: [gcloud, functions, deploy, start, --region=europe-west2, --source=src/, --trigger-http, --runtime=nodejs16, --entry-point=start, --env-vars-file=src/.env.gc.yaml]
   waitFor: ['-']
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  args: [gcloud, functions, deploy, reader, --region=europe-west2, --source=src/, --trigger-http, --runtime=nodejs16, --entry-point=read, --env-vars-file=src/.env.gc.yaml]
+  args: [gcloud, functions, deploy, reader, --region=europe-west2, --source=src/, --trigger-topic=ReaderInput, --runtime=nodejs16, --entry-point=read, --env-vars-file=src/.env.gc.yaml]
   waitFor: ['-']
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   args: [gcloud, functions, deploy, mapper, --region=europe-west2, --source=src/, --trigger-topic=MapperInput, --runtime=nodejs16, --entry-point=map, --env-vars-file=src/.env.gc.yaml]
