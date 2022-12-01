@@ -154,7 +154,7 @@ exports.shuffle = async (message, context, callback) => {
     const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
     const targetFile = _message.targetFile;
 
-    console.log("Shuffling file: ", fileName);
+    console.log("Shuffling file: ", targetFile);
     const data = (await bucket.file(targetFile).download())[0].toString();
     const outputs = _shuffle(data);
     const outputFilePrefix = `${targetFile.split('/')[0]}/red_${targetFile.split('_')[1]}_`;
@@ -177,7 +177,7 @@ exports.shuffle = async (message, context, callback) => {
             }
         }
     });
-    console.log('File shuffled: ', outputFileName + '_x');
+    console.log('File shuffled: ', outputFilePrefix + '_x');
 };
 
 exports.reduce = async (message, context, callback) => {
