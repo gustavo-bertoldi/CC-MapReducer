@@ -117,7 +117,7 @@ exports.start = async (req, res) => {
         console.log(`Pipeline temporary output path: ${tmpOutputDir}`);
     
         //Download stop words file
-        const stopWords = (await bucket.file(process.env.STOP_WORDS_PATH).download()).toString();
+        const stopWords = (await bucket.file(process.env.STOP_WORDS_PATH).download({ timeout: 30000 })).toString();
     
         //Trigger one reader for each file by publishing a message to the reader topic
         const inputs = (await bucket.getFiles({ prefix: process.env.INPUT_PATH }))[0]
@@ -152,7 +152,7 @@ exports.read = async (message, context, callback) => {
         const stopWords = new Set(_message.stopWords.split(',')); // Set for better lookup performance
 
         // Download target file
-        const data = (await bucket.file(_message.targetFile).download())[0].toString();
+        const data = (await bucket.file(_message.targetFile).download({ timeout: 30000 }))[0].toString();
 
         // Generate mapper input and save it to the output directory
         const output = _read(data, stopWords);
@@ -186,7 +186,7 @@ exports.map = async (message, context, callback) => {
         console.log("Mapping file: ", _message.targetFile);
 
         // Download target file
-        const data = (await bucket.file(_message.targetFile).download())[0].toString();
+        const data = (await bucket.file(_message.targetFile).download({ timeout: 30000 }))[0].toString();
 
         // Generate shuffler input and save it to the output directory
         const output = _map(data);
@@ -220,7 +220,7 @@ exports.shuffle = async (message, context, callback) => {
         console.log("Shuffling file: ", _message.targetFile);
 
         // Download target file
-        const data = (await bucket.file(_message.targetFile).download())[0].toString();
+        const data = (await bucket.file(_message.targetFile).download({ timeout: 30000 }))[0].toString();
 
         // Generate reducer inputs
         const outputs = _shuffle(data);
@@ -266,7 +266,7 @@ exports.reduce = async (message, context, callback) => {
         console.log("Reducing for hash index: ", `${_message.targetIdx}`);
 
         // Download and concatenate all the files
-        const downloads = files.map(file => file.download());
+        const downloads = files.map(file => file.download({ timeout: 30000 }));
         const data = (await Promise.all(downloads)).map(d => d[0].toString()).join('');
 
         // Reduce the data
@@ -302,7 +302,7 @@ exports.clean = async (message, context, callback) => {
         const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
         const reducerOutputPrefix = `${_message.outputDir}/result_`;
         const files = (await bucket.getFiles({ prefix: reducerOutputPrefix }))[0];
-        const finalResult = (await Promise.all(files.map(file => file.download())))
+        const finalResult = (await Promise.all(files.map(file => file.download({ timeout: 30000 }))))
             .map(d => d[0].toString()).join('');
 
         // Write the output to the output directory in Google Cloud Storage
