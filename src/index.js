@@ -43,9 +43,6 @@ function _read(str, stopWords) {
         .join(',');
 }
 
-// Return a comma separated string containing a pair of words in the format
-// word1:word2. Where word1 is the alphabetically sorted word and word2 is the
-// original word. To be used as input for the shuffler.
 /**
  * Return a comma separated string containing a pair of words in the format
  * word1:word2. Where word1 is the alphabetically sorted word and word2 is the
@@ -86,7 +83,7 @@ function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO))
 /**
  * 
  * @param {string} input 
- * @returns {{string: Set<string>}}
+ * @returns {string}
  */
 function _reduce(input) {
     const map = input.split(',').reduce((acc, pair) => {
@@ -99,7 +96,7 @@ function _reduce(input) {
 
     return Object.keys(map).reduce((acc, key) => {
         if (map[key].size > 1) {
-            acc += `${key}: { ${[...map[key]].join(', ')} }\n`;
+            acc += `${key}: { ${[...map[key]].sort().join(', ')} }\n`;
         }
         return acc;
     }, "");
@@ -139,9 +136,14 @@ exports.start = async (req, res) => {
     
 };
 
-// Reads all files from the input directory, filters the words and writes the 
-// output in format as a comma separated string of valid words to the output 
-// directory to be used as input for the mappers.
+/**
+ * Reads all files from the input directory, filters the words and writes the 
+ * output in format as a comma separated string of valid words to the output 
+ * directory to be used as input for the mappers.
+ * @param {*} message 
+ * @param {*} context 
+ * @param {*} callback 
+ */
 exports.read = async (message, context, callback) => {
     try {
         // Initialize the topic to publish messages to the mapper
@@ -175,9 +177,15 @@ exports.read = async (message, context, callback) => {
     }
 };
 
-// Triggered by a message to the mapper input topic containing the name of the file
-// to be mapped. On conclusion, published a message to the shuffler input topic
-// containing the file with the mapped content.
+
+/**
+ * Triggered by a message to the mapper input topic containing the name of the file
+ * to be mapped. On conclusion, published a message to the shuffler input topic
+ * containing the file with the mapped content.
+ * @param {*} message 
+ * @param {*} context 
+ * @param {*} callback 
+ */
 exports.map = async (message, context, callback) => {
     try {
         // Parse message from reader
@@ -210,7 +218,12 @@ exports.map = async (message, context, callback) => {
     }
 };
 
-
+/**
+ * 
+ * @param {*} message 
+ * @param {*} context 
+ * @param {*} callback 
+ */
 exports.shuffle = async (message, context, callback) => {
     try {
         // Parse message from mapper
@@ -255,6 +268,12 @@ exports.shuffle = async (message, context, callback) => {
     }
 };
 
+/**
+ * 
+ * @param {*} message 
+ * @param {*} context 
+ * @param {*} callback 
+ */
 exports.reduce = async (message, context, callback) => {
     try {
         // Get trigger parameters
@@ -296,6 +315,12 @@ exports.reduce = async (message, context, callback) => {
 
 }
 
+/**
+ * 
+ * @param {*} message 
+ * @param {*} context 
+ * @param {*} callback 
+ */
 exports.clean = async (message, context, callback) => {
     try {
         // Get trigger parameters
