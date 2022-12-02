@@ -91,7 +91,7 @@ function _shuffle(input) {
         if (idx != 0) acc[hashIdx] += ',';
         acc[hashIdx] += pair;
         return acc;
-    }, new Array(env.process.SHUFFLER_HASH_MODULO));
+    }, new Array(process.env.SHUFFLER_HASH_MODULO));
     console.log(res);
     return res;
 };
