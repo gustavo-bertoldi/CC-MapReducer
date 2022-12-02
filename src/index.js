@@ -69,7 +69,8 @@ function _map(input) {
  * @returns {string[]}
  */
 function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO)) {
-    return input.split(',').reduce((acc, pair, idx) => {
+    console.log('Shuffling with hash modulo', nbOutputs);
+    const res = input.split(',').reduce((acc, pair, idx) => {
         const [sorted, _] = pair.split(':');
         const hash = crypto.createHash('md5').update(sorted).digest('hex');
         const hashIdx = parseInt(hash, 16) % nbOutputs;
@@ -78,6 +79,8 @@ function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO))
         acc[hashIdx] += pair;
         return acc;
     }, new Array(nbOutputs));
+    console.log(res);
+    return res;
 };
 
 /**
@@ -128,7 +131,7 @@ exports.start = async (req, res) => {
                 };
                 await readerTopic.publishMessage({ json: jsonMessage });
             });
-        res.status(200).send('Pipeline started for ' + inputs.length + ' files');
+        res.status(200).send(`Pipeline started for ${inputs.length} files\nPipeline temporary output path: ${tmpOutputDir}`);
     } catch (err) {
         console.error(err);
         res.status(500).send(err);
@@ -228,7 +231,6 @@ exports.shuffle = async (message, context, callback) => {
     try {
         // Parse message from mapper
         const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
-        const targetFile = _message.targetFile;
 
         console.log("Shuffling file: ", _message.targetFile);
 
@@ -237,7 +239,8 @@ exports.shuffle = async (message, context, callback) => {
 
         // Generate reducer inputs
         const outputs = _shuffle(data);
-        const outputFilesPrefix = targetFile.replace('shuf_', 'red_') + '_';
+
+        const outputFilesPrefix = _message.targetFile.replace('shuf_', 'red_') + '_';
 
         // Save all outputs to a separate file in Google Cloud Storage
         await Promise.all(outputs.map((output, idx) =>
