@@ -1,0 +1,17 @@
+{
+  "name": "map-reduce-pipeline",
+  "version": "1.0.0",
+  "description": "MapReduce pipeline for finding anagrams",
+  "main": "start.js",
+  "repository": "https://github.com/gustavo-bertoldi/CC-MapReducer.git",
+  "author": "gustavo-bertoldi <gg.bertoldi@hotmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "node start.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@google-cloud/pubsub": "^3.2.1",
+    "google-auth-library": "^8.7.0"
+  }
+}

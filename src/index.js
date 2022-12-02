@@ -10,22 +10,18 @@ if (!process.env.MAPPER_INPUT_TOPIC) throw new Error("MAPPER_INPUT_TOPIC environ
 if (!process.env.SHUFFLER_INPUT_TOPIC) throw new Error("SHUFFLER_INPUT_TOPIC environment variable not set");
 if (!process.env.REDUCER_INPUT_TOPIC) throw new Error("REDUCER_INPUT_TOPIC environment variable not set");
 if (!process.env.CLEANER_TOPIC) throw new Error("CLEANER_TOPIC environment variable not set");
+if (!process.env.FINISHED_TOPIC) throw new Error("FINISHED_TOPIC environment variable not set");
 if (!process.env.STOP_WORDS_PATH) throw new Error("STOP_WORDS_PATH environment variable not set");
 if (!process.env.INPUT_PATH) throw new Error("INPUT_PATH environment variable not set");
 if (!process.env.OUTPUT_PATH) throw new Error("OUTPUT_PATH environment variable not set");
 if (!process.env.SHUFFLER_HASH_MODULO) throw new Error("SHUFFLER_HASH_MODULO environment variable not set");
 
-const config = {
-    projectId: process.env.PROJECT_ID,
-    keyFilename: process.env.KEY_FILE
-}
-
 //Set up the storage client and read input files
-const storage = new Storage(config);
+const storage = new Storage({ projectId: process.env.PROJECT_ID });
 const bucket = storage.bucket(process.env.BUCKET_NAME);
 
 //Set up the pubsub client
-const pubsub = new PubSub(config);
+const pubsub = new PubSub({ projectId: process.env.PROJECT_ID });
 
 /**
  * djb2 hash function implementation
@@ -142,7 +138,8 @@ exports.start = async (req, res) => {
                 };
                 await readerTopic.publishMessage({ json: jsonMessage });
             });
-        res.status(200).send(`Pipeline started for ${inputs.length} files\nPipeline temporary output path: ${tmpOutputDir}`);
+        res.status(200).send(`Pipeline started for ${inputs.length} files
+            \nOutput will be stored in ${process.env.OUTPUT_PATH}${tmpOutputDir.split('/')[0]}`);
     } catch (err) {
         console.error(err);
         res.status(500).send(err);
@@ -152,11 +149,11 @@ exports.start = async (req, res) => {
 
 /**
  * Reads all files from the input directory, filters the words and writes the 
- * output in format as a comma separated string of valid words to the output 
- * directory to be used as input for the mappers.
- * @param {*} message 
- * @param {*} context 
- * @param {*} callback 
+ * output in the format of a comma separated string of valid words to be used
+ * by as input of the mappers.
+ * @param {*} message PubSub message base64 encoded that triggered the function
+ * @param {*} context Event metadata 
+ * @param {*} callback Cloud function callback to signal completion
  */
 exports.read = async (message, context, callback) => {
     try {
@@ -193,12 +190,14 @@ exports.read = async (message, context, callback) => {
 
 
 /**
- * Triggered by a message to the mapper input topic containing the name of the file
- * to be mapped. On conclusion, published a message to the shuffler input topic
- * containing the file with the mapped content.
- * @param {*} message 
- * @param {*} context 
- * @param {*} callback 
+ * Triggered by a message to the mapper input topic. Reads the input in 
+ * the file specified in the message, which is in the format of a comma 
+ * separated string of words. Maps each words to a pair in the format
+ * word1: word2. Where word1 is the alphabetically sorted word and word2 
+ * is the original word.
+ * @param {*} message PubSub message base64 encoded that triggered the function
+ * @param {*} context Event metadata 
+ * @param {*} callback Cloud function callback to signal completion
  */
 exports.map = async (message, context, callback) => {
     try {
@@ -233,10 +232,16 @@ exports.map = async (message, context, callback) => {
 };
 
 /**
- * 
- * @param {*} message 
- * @param {*} context 
- * @param {*} callback 
+ * Triggered by a message to the shuffler input topic. Reads the input in
+ * the file specified in the message, which is in the format of a comma
+ * separated string of pairs. For each pair, it uses the first word to 
+ * generate a hash and group the words into SHUFFLER_HASH_MODULO buckets.
+ * The output is SHUFFLER_HASH_MODULO files, one for each possible hash
+ * value, where each file contains the pairs that have the same hash value,
+ * one per line.
+ * @param {*} message PubSub message base64 encoded that triggered the function
+ * @param {*} context Event metadata 
+ * @param {*} callback Cloud function callback to signal completion
  */
 exports.shuffle = async (message, context, callback) => {
     try {
@@ -282,10 +287,17 @@ exports.shuffle = async (message, context, callback) => {
 };
 
 /**
- * 
- * @param {*} message 
- * @param {*} context 
- * @param {*} callback 
+ * Triggered by a message to the reducer input topic, must not be triggered
+ * before the completion of all shufflers. Reads the input in all the files 
+ * having the same shuffler hash index. Each file is in the format of a comma
+ * separated string of pairs and contains only the pairs whose first word has 
+ * the same hash value as the reducer hash index. Reduces the pairs by grouping
+ * them by the first word, and keeping only the groups with more than one word. 
+ * The words in each group are sorted alphabetically and the output is a list of
+ * groups, one per line.
+ * @param {*} message PubSub message base64 encoded that triggered the function
+ * @param {*} context Event metadata 
+ * @param {*} callback Cloud function callback to signal completion
  */
 exports.reduce = async (message, context, callback) => {
     try {
@@ -329,10 +341,11 @@ exports.reduce = async (message, context, callback) => {
 }
 
 /**
- * 
- * @param {*} message 
- * @param {*} context 
- * @param {*} callback 
+ * Triggered after the completion of the pipeline. Joins the results of all
+ * reducers into a single output file and deletes all temporary files.
+ * @param {*} message PubSub message base64 encoded that triggered the function
+ * @param {*} context Event metadata 
+ * @param {*} callback Cloud function callback to signal completion
  */
 exports.clean = async (message, context, callback) => {
     try {
@@ -353,6 +366,9 @@ exports.clean = async (message, context, callback) => {
         // Delete all temporary files
         console.log("Cleaning up...");
         await bucket.deleteFiles({ prefix: _message.outputDir });
+
+        const finishedTopic = pubsub.topic(process.env.FINISHED_TOPIC);
+        await finishedTopic.publishMessage({ data: Buffer.from(`Done: ${_message.outputDir.split('/')[0]}`) });
         callback();
     } catch (err) {
         console.error(err);

@@ -1,7 +1,7 @@
 .vscode
 .DS_Store
-src/node_modules
-src/yarn.lock
-src/package-lock.json
+**node_modules
+**yarn.lock
+**package-lock.json
 src/.env
-src/key.json
+key.json
