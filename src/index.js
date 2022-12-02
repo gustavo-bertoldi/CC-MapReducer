@@ -138,8 +138,7 @@ exports.start = async (req, res) => {
                 };
                 await readerTopic.publishMessage({ json: jsonMessage });
             });
-        res.status(200).send(`Pipeline started for ${inputs.length} files
-            \nOutput will be stored in ${process.env.OUTPUT_PATH}${tmpOutputDir.split('/')[0]}`);
+        res.status(200).send(`Pipeline started for ${inputs.length} files\nOutput will be stored in ${process.env.OUTPUT_PATH}${tmpOutputDir.split('/')[0]}`);
     } catch (err) {
         console.error(err);
         res.status(500).send(err);
