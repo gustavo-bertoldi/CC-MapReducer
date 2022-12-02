@@ -300,13 +300,11 @@ exports.clean = async (message, context, callback) => {
     try {
         // Get trigger parameters
         const _message = JSON.parse(Buffer.from(message.data, 'base64').toString());
-        const reducerOutputPrefix = `${_message.outputDir}/result_`;
+        const reducerOutputPrefix = `${_message.outputDir}result_`;
         const files = (await bucket.getFiles({ prefix: reducerOutputPrefix }))[0];
         const data = (await Promise.all(files.map(file => file.download({ timeout: 30000 }))));
-        console.log("Files downloaded: ", data.length);
-
         const output = data.map(d => d[0].toString()).join('');
-        console.log("Output: ", output);
+
 
         // Write the output to the output directory in Google Cloud Storage
         const outputName = `${_message.outputDir.split('/')[0]}.txt`;
