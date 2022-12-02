@@ -28,6 +28,20 @@ const bucket = storage.bucket(process.env.BUCKET_NAME);
 const pubsub = new PubSub(config);
 
 /**
+ * 
+ * @param {string} str 
+ * @returns {string}
+ */
+function hashStr(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return hash;
+}
+
+/**
  * Filters the input string to remove stop words and non-alphabetic characters.
  * Returns a comma separated string of valid words to be used as input of the mappers.
  * @param {string} str the input file in string format
@@ -72,8 +86,7 @@ function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO))
     console.log('Shuffling with hash modulo', nbOutputs);
     const res = input.split(',').reduce((acc, pair, idx) => {
         const [sorted, _] = pair.split(':');
-        const hash = crypto.createHash('md5').update(sorted).digest('hex');
-        const hashIdx = parseInt(hash, 16) % nbOutputs;
+        const hashIdx = hashStr(sorted) % nbOutputs;
         if (!acc[hashIdx]) acc[hashIdx] = '';
         if (idx != 0) acc[hashIdx] += ',';
         acc[hashIdx] += pair;
