@@ -13,7 +13,7 @@ if (!process.env.CLEANER_TOPIC) throw new Error("CLEANER_TOPIC environment varia
 if (!process.env.STOP_WORDS_PATH) throw new Error("STOP_WORDS_PATH environment variable not set");
 if (!process.env.INPUT_PATH) throw new Error("INPUT_PATH environment variable not set");
 if (!process.env.OUTPUT_PATH) throw new Error("OUTPUT_PATH environment variable not set");
-if (!process.env.SHUFFLER_HASH_MODULO) process.env.SHUFFLER_HASH_MODULO = "5";
+if (!process.env.SHUFFLER_HASH_MODULO) throw new Error("SHUFFLER_HASH_MODULO environment variable not set");
 
 const config = {
     projectId: process.env.PROJECT_ID,
@@ -28,17 +28,18 @@ const bucket = storage.bucket(process.env.BUCKET_NAME);
 const pubsub = new PubSub(config);
 
 /**
- * 
+ * djb2 hash function implementation
+ * Returns an integer from 0 to SHUFFLER_HASH_MODULO - 1
  * @param {string} str 
- * @returns {string}
+ * @returns {number}
  */
 function hashStr(str) {
-    let hash = 0;
+    let hash = 5381;
     for (let i = 0; i < str.length; i++) {
-        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash = ((hash << 5) + hash) + str.charCodeAt(i);
         hash |= 0;
     }
-    return hash;
+    return hash % process.env.SHUFFLER_HASH_MODULO;
 }
 
 /**
@@ -82,16 +83,15 @@ function _map(input) {
  * @param {number} nbOutputs 
  * @returns {string[]}
  */
-function _shuffle(input, nbOutputs = parseInt(process.env.SHUFFLER_HASH_MODULO)) {
-    console.log('Shuffling with hash modulo', nbOutputs);
+function _shuffle(input) {
     const res = input.split(',').reduce((acc, pair, idx) => {
         const [sorted, _] = pair.split(':');
-        const hashIdx = hashStr(sorted) % nbOutputs;
+        const hashIdx = hashStr(sorted);
         if (!acc[hashIdx]) acc[hashIdx] = '';
         if (idx != 0) acc[hashIdx] += ',';
         acc[hashIdx] += pair;
         return acc;
-    }, new Array(nbOutputs));
+    }, new Array(env.process.SHUFFLER_HASH_MODULO));
     console.log(res);
     return res;
 };
@@ -263,7 +263,6 @@ exports.shuffle = async (message, context, callback) => {
         //Verify all shufflers have finished
         const expectedShufflerOutputs = _message.nbInputs * process.env.SHUFFLER_HASH_MODULO;
         const shufflerOutputs = (await bucket.getFiles({ prefix: outputFilesPrefix.split('_')[0] }))[0].length;
-        console.log('Shuffler outputs: ', shufflerOutputs, ' Expected: ', expectedShufflerOutputs);
         if (shufflerOutputs === expectedShufflerOutputs) {
             // All shufflers have finished, trigger the reducers
             const reducerTopic = pubsub.topic(process.env.REDUCER_INPUT_TOPIC);
