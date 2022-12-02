@@ -84,7 +84,7 @@ function _map(input) {
  * @returns {string[]}
  */
 function _shuffle(input) {
-    const res = input.split(',').reduce((acc, pair, idx) => {
+    return input.split(',').reduce((acc, pair, idx) => {
         const [sorted, _] = pair.split(':');
         const hashIdx = hashStr(sorted);
         if (!acc[hashIdx]) acc[hashIdx] = '';
@@ -92,8 +92,6 @@ function _shuffle(input) {
         acc[hashIdx] += pair;
         return acc;
     }, new Array(process.env.SHUFFLER_HASH_MODULO));
-    console.log(res);
-    return res;
 };
 
 /**
