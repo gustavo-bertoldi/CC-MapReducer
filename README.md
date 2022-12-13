@@ -9,7 +9,11 @@ npm install
 npm run start
 ```
 
-This will trigger the pipeline for the collection of 100 ebooks provided for this coursework and output the paths to access the results.
+This will trigger the pipeline for the collection of 100 ebooks provided for this coursework. The result is stored in the output directory (`gs://mrcw/output/`). The name of the output file and the execution time will be logged in the console. Also, a http address allowing to download the output file will be provided.
+
+## **Input and Output buckets**
+- Input: `gs://mrcw/input/`
+- Output: `gs://mrcw/output/`
 
 ## **Pipeline architecture**
 The pipeline is composed of 4 phases and 2 helper functions, which are in order:

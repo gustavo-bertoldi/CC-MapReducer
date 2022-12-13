@@ -91,7 +91,10 @@ function _shuffle(input) {
 };
 
 /**
- * 
+ * Processes an input in the form of a comma separated string of pairs of words,
+ * where the first element is the word sorted by character and the second is the 
+ * original word. Returns a string where each line contains one sorted word followed
+ * by all the original words having that sorted word as sorted version.
  * @param {string} input 
  * @returns {string}
  */
@@ -109,9 +112,20 @@ function _reduce(input) {
             acc += `${key}: { ${[...map[key]].sort().join(', ')} }\n`;
         }
         return acc;
-    }, "");
+    }, ""); 
 };
 
+
+/**
+ * Helper function to start the pipeline. Generates an unique id for the pipeline
+ * run, which will serve as the temporary directory name and the output file name.
+ * Next, reads all files in the input directory and triggers one `reader` job for
+ * each file by sending a Pub/Sub message containing the target input file, the
+ * temporary output directory, the total number of input files and the stop words
+ * array.
+ * @param {*} req HTTP request object
+ * @param {*} res HTTP response
+ */
 exports.start = async (req, res) => {
     try {
         console.log('Starting MapReduce pipeline...');
@@ -124,7 +138,8 @@ exports.start = async (req, res) => {
         console.log(`Pipeline temporary output path: ${tmpOutputDir}`);
     
         //Download stop words file
-        const stopWords = (await bucket.file(process.env.STOP_WORDS_PATH).download({ timeout: 30000 })).toString();
+        const stopWords = (await bucket.file(process.env.STOP_WORDS_PATH)
+            .download({ timeout: 30000 })).toString();
     
         //Trigger one reader for each file by publishing a message to the reader topic
         const inputs = (await bucket.getFiles({ prefix: process.env.INPUT_PATH }))[0]
